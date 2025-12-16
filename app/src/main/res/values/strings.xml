@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">ChoreApp</string>
+
+    <!-- Login -->
+    <string name="login_title">Login to ChoreApp</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="login">Login</string>
+    <string name="login_error">Login failed. Please check your credentials.</string>
+    <string name="network_error">Network error. Please try again.</string>
+
+    <!-- Chore List -->
+    <string name="chore_list_title">My Chores</string>
+    <string name="no_chores">No chores yet. Create your first one!</string>
+    <string name="add_chore">Add Chore</string>
+    <string name="logout">Logout</string>
+    <string name="refresh">Refresh</string>
+
+    <!-- Chore Detail -->
+    <string name="chore_detail_title">Chore Details</string>
+    <string name="title">Title</string>
+    <string name="description">Description</string>
+    <string name="status">Status</string>
+    <string name="priority">Priority</string>
+    <string name="due_date">Due Date</string>
+    <string name="points">Points</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="edit">Edit</string>
+    <string name="cancel">Cancel</string>
+
+    <!-- Validation -->
+    <string name="title_required">Title is required</string>
+    <string name="save_success">Chore saved successfully</string>
+    <string name="delete_success">Chore deleted successfully</string>
+    <string name="delete_confirm">Are you sure you want to delete this chore?</string>
+
+    <!-- Status -->
+    <string name="status_pending">Pending</string>
+    <string name="status_in_progress">In Progress</string>
+    <string name="status_completed">Completed</string>
+
+    <!-- Priority -->
+    <string name="priority_low">Low</string>
+    <string name="priority_medium">Medium</string>
+    <string name="priority_high">High</string>
+</resources>
