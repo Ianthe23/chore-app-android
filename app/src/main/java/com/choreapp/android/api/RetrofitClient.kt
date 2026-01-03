@@ -10,16 +10,22 @@ import java.util.concurrent.TimeUnit
 object RetrofitClient {
 
     private var retrofit: Retrofit? = null
+    private var appContext: Context? = null
 
     fun getClient(context: Context): Retrofit {
+        // Use application context to avoid memory leaks
+        if (appContext == null) {
+            appContext = context.applicationContext
+        }
+
         if (retrofit == null) {
             // Logging interceptor for debugging
             val loggingInterceptor = HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             }
 
-            // Auth interceptor for JWT
-            val authInterceptor = AuthInterceptor(context)
+            // Auth interceptor for JWT - use application context
+            val authInterceptor = AuthInterceptor(appContext!!)
 
             // OkHttp client
             val okHttpClient = OkHttpClient.Builder()
@@ -36,6 +42,8 @@ object RetrofitClient {
                 .client(okHttpClient)
                 .addConverterFactory(GsonConverterFactory.create())
                 .build()
+
+            android.util.Log.d("RetrofitClient", "Retrofit instance created")
         }
         return retrofit!!
     }

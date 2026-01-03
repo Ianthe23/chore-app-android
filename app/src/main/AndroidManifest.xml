@@ -29,6 +29,12 @@
             </intent-filter>
         </activity>
 
+        <!-- Register Activity -->
+        <activity
+            android:name=".RegisterActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ChoreApp.NoActionBar" />
+
         <!-- Chore List Activity -->
         <activity
             android:name=".ChoreListActivity"
@@ -39,6 +45,7 @@
         <activity
             android:name=".ChoreDetailActivity"
             android:exported="false"
+            android:theme="@style/Theme.ChoreApp.NoActionBar"
             android:parentActivityName=".ChoreListActivity" />
 
     </application>

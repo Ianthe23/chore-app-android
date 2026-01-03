@@ -39,6 +39,11 @@ class LoginActivity : AppCompatActivity() {
                 performLogin(username, password)
             }
         }
+
+        binding.tvGoToRegister.setOnClickListener {
+            val intent = Intent(this, RegisterActivity::class.java)
+            startActivity(intent)
+        }
     }
 
     private fun validateInput(username: String, password: String): Boolean {
@@ -103,8 +108,13 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun saveToken(token: String) {
+        android.util.Log.d("LoginActivity", "Saving token: ${token.take(20)}...")
         val sharedPrefs = getSharedPreferences("ChoreAppPrefs", Context.MODE_PRIVATE)
         sharedPrefs.edit().putString("jwt_token", token).apply()
+
+        // Verify token was saved
+        val savedToken = sharedPrefs.getString("jwt_token", null)
+        android.util.Log.d("LoginActivity", "Token saved successfully: ${!savedToken.isNullOrEmpty()}")
     }
 
     private fun saveUserId(userId: Int) {

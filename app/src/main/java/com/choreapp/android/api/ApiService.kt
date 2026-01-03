@@ -12,8 +12,16 @@ interface ApiService {
     @POST("auth/login")
     suspend fun login(@Body loginRequest: LoginRequest): Response<LoginResponse>
 
+    @POST("auth/register")
+    suspend fun register(@Body registerRequest: LoginRequest): Response<LoginResponse>
+
     @GET("chores")
-    suspend fun getChores(): Response<ChoreResponse>
+    suspend fun getChores(
+        @Query("page") page: Int = 1,
+        @Query("limit") limit: Int = 5,
+        @Query("status") status: String? = null,
+        @Query("q") query: String? = null
+    ): Response<ChoreResponse>
 
     @GET("chores/{id}")
     suspend fun getChore(@Path("id") id: Int): Response<ChoreResponse>

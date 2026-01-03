@@ -77,8 +77,8 @@ class ChoreDetailActivity : AppCompatActivity() {
         binding.etDueDate.setText(intent.getStringExtra("chore_due_date") ?: "")
         binding.etPoints.setText(intent.getIntExtra("chore_points", 0).toString())
 
-        // Start in view mode
-        disableEditMode()
+        // Enable editing by default
+        enableEditMode()
     }
 
     private fun setupListeners() {
@@ -159,15 +159,20 @@ class ChoreDetailActivity : AppCompatActivity() {
             points = binding.etPoints.text.toString().toIntOrNull() ?: 0
         )
 
+        android.util.Log.d("ChoreDetailActivity", "Saving chore - isNew: ${choreId == -1}, choreId: $choreId")
+        android.util.Log.d("ChoreDetailActivity", "Chore data: ${chore.title}, ${chore.status}, ${chore.priority}")
+
         lifecycleScope.launch {
             try {
                 val apiService = RetrofitClient.getApiService(this@ChoreDetailActivity)
 
                 val response = if (choreId == -1) {
                     // Create new chore
+                    android.util.Log.d("ChoreDetailActivity", "Creating new chore via POST")
                     apiService.createChore(chore)
                 } else {
                     // Update existing chore
+                    android.util.Log.d("ChoreDetailActivity", "Updating chore via PUT, id: $choreId")
                     apiService.updateChore(choreId!!, chore)
                 }
 
@@ -175,18 +180,20 @@ class ChoreDetailActivity : AppCompatActivity() {
                 binding.btnSave.isEnabled = true
 
                 if (response.isSuccessful) {
+                    val savedChore = response.body()?.chore
                     Toast.makeText(
                         this@ChoreDetailActivity,
-                        getString(R.string.save_success),
-                        Toast.LENGTH_SHORT
+                        "Chore saved! ID: ${savedChore?.id}",
+                        Toast.LENGTH_LONG
                     ).show()
 
                     finish()
                 } else {
+                    val errorBody = response.errorBody()?.string()
                     Toast.makeText(
                         this@ChoreDetailActivity,
-                        "Failed to save chore: ${response.code()}",
-                        Toast.LENGTH_SHORT
+                        "Failed to save: ${response.code()} - $errorBody",
+                        Toast.LENGTH_LONG
                     ).show()
                 }
             } catch (e: Exception) {
