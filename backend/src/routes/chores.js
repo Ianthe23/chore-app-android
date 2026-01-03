@@ -256,7 +256,7 @@ router.post("/", async (req, res) => {
       chore: normalizedChore,
     });
 
-    res.status(201).json(normalizedChore);
+    res.status(201).json({ chore: normalizedChore });
   } catch (error) {
     console.error("Create chore error:", error);
     res.status(500).json({ error: "Failed to create chore" });
@@ -435,7 +435,7 @@ router.put("/:id", async (req, res) => {
       chore: normalizedChore,
     });
 
-    res.json(normalizedChore);
+    res.json({ chore: normalizedChore });
   } catch (error) {
     console.error("Update chore error:", error);
     res.status(500).json({ error: "Failed to update chore" });

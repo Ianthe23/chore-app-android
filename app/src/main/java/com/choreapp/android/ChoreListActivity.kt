@@ -1,21 +1,32 @@
 package com.choreapp.android
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.work.*
 import com.choreapp.android.adapters.ChoreAdapter
-import com.choreapp.android.api.RetrofitClient
 import com.choreapp.android.databinding.ActivityChoreListBinding
 import com.choreapp.android.models.Chore
+import com.choreapp.android.network.NetworkMonitor
+import com.choreapp.android.repository.ChoreRepository
+import com.choreapp.android.utils.NotificationHelper
 import com.choreapp.android.websocket.WebSocketManager
+import com.choreapp.android.workers.SyncWorker
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import java.util.concurrent.TimeUnit
 
 class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListener {
 
@@ -23,14 +34,17 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     private lateinit var choreAdapter: ChoreAdapter
     private var chores: MutableList<Chore> = mutableListOf()
 
-    // Pagination variables
-    private var currentPage = 1
-    private var totalPages = 1
-    private var isLoading = false
-    private val pageSize = 5  // Show 5 chores per page
-
-    // WebSocket
+    // Offline-first architecture
+    private lateinit var repository: ChoreRepository
+    private lateinit var networkMonitor: NetworkMonitor
     private val webSocketManager = WebSocketManager.getInstance()
+
+    private var isOnline = true
+    private var pendingOperationsCount = 0
+
+    companion object {
+        private const val NOTIFICATION_PERMISSION_CODE = 100
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,10 +53,120 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
 
         setSupportActionBar(binding.toolbar)
 
+        // Initialize offline-first components
+        repository = ChoreRepository(this)
+        networkMonitor = NetworkMonitor(this)
+
+        // Request notification permission
+        requestNotificationPermission()
+
+        // Create notification channel
+        NotificationHelper.createNotificationChannel(this)
+
         setupRecyclerView()
         setupListeners()
         setupWebSocket()
-        loadChores()
+        setupNetworkMonitoring()
+        setupBackgroundSync()
+        loadChoresFromDatabase()
+    }
+
+    private fun requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
+                    NOTIFICATION_PERMISSION_CODE
+                )
+            }
+        }
+    }
+
+    private fun setupNetworkMonitoring() {
+        // Monitor network status
+        lifecycleScope.launch {
+            networkMonitor.isOnline.collectLatest { online ->
+                isOnline = online
+                runOnUiThread {
+                    updateNetworkStatus()
+
+                    if (online) {
+                        // Trigger sync when coming back online
+                        lifecycleScope.launch {
+                            syncPendingOperations()
+                            // Update UI to reflect sync completion
+                            pendingOperationsCount = repository.getPendingOperationsCount()
+                            updateNetworkStatus()
+                            // Small delay before fetching to ensure server has processed
+                            kotlinx.coroutines.delay(500)
+                            fetchFromServer()
+                        }
+                    }
+                }
+            }
+        }
+
+        // Update pending operations count periodically
+        lifecycleScope.launch {
+            while (true) {
+                pendingOperationsCount = repository.getPendingOperationsCount()
+                runOnUiThread {
+                    updateNetworkStatus()
+                }
+                kotlinx.coroutines.delay(2000) // Check every 2 seconds
+            }
+        }
+    }
+
+    private fun updateNetworkStatus() {
+        binding.tvNetworkStatus.visibility = View.VISIBLE
+        binding.tvNetworkStatus.text = if (isOnline) {
+            if (pendingOperationsCount > 0) {
+                "Online - Syncing $pendingOperationsCount pending operation(s)..."
+            } else {
+                "Online"
+            }
+        } else {
+            "Offline - Changes will sync when back online${if (pendingOperationsCount > 0) " ($pendingOperationsCount pending)" else ""}"
+        }
+
+        binding.tvNetworkStatus.setBackgroundColor(
+            if (isOnline) {
+                if (pendingOperationsCount > 0) 0xFFFFA500.toInt() // Orange
+                else 0xFF4CAF50.toInt() // Green
+            } else {
+                0xFF9E9E9E.toInt() // Gray
+            }
+        )
+    }
+
+    private fun setupBackgroundSync() {
+        // Setup periodic background sync with WorkManager (3p requirement)
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        val syncRequest = PeriodicWorkRequestBuilder<SyncWorker>(
+            15, TimeUnit.MINUTES // Minimum interval for periodic work
+        )
+            .setConstraints(constraints)
+            .setBackoffCriteria(
+                BackoffPolicy.LINEAR,
+                WorkRequest.MIN_BACKOFF_MILLIS,
+                TimeUnit.MILLISECONDS
+            )
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "chore_sync",
+            ExistingPeriodicWorkPolicy.KEEP,
+            syncRequest
+        )
     }
 
     private fun setupWebSocket() {
@@ -68,110 +192,70 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     }
 
     private fun setupListeners() {
-        // Floating action button to add new chore
         binding.fabAddChore.setOnClickListener {
             openChoreDetail(null)
         }
 
-        // Swipe to refresh - reset to first page
         binding.swipeRefreshLayout.setOnRefreshListener {
-            currentPage = 1
-            loadChores(reset = true)
-        }
-
-        // Previous button
-        binding.btnPrevious.setOnClickListener {
-            if (currentPage > 1 && !isLoading) {
-                currentPage--
-                loadChores(reset = true)
-            }
-        }
-
-        // Next button
-        binding.btnNext.setOnClickListener {
-            if (currentPage < totalPages && !isLoading) {
-                currentPage++
-                loadChores(reset = true)
-            }
-        }
-    }
-
-    private fun loadChores(reset: Boolean = false) {
-        if (reset) {
-            currentPage = 1
-        }
-
-        isLoading = true
-        binding.progressBar.visibility = View.VISIBLE
-        binding.tvEmptyState.visibility = View.GONE
-
-        lifecycleScope.launch {
-            try {
-                val apiService = RetrofitClient.getApiService(this@ChoreListActivity)
-                val response = apiService.getChores(page = currentPage, limit = pageSize)
-
-                binding.progressBar.visibility = View.GONE
-                binding.swipeRefreshLayout.isRefreshing = false
-                isLoading = false
-
-                if (response.isSuccessful && response.body() != null) {
-                    val choreResponse = response.body()!!
-
-                    // Calculate total pages
-                    val total = choreResponse.total ?: 0
-                    totalPages = if (total > 0) ((total + pageSize - 1) / pageSize) else 1
-
-                    // Backend returns "items" not "chores"
-                    val choreList = choreResponse.items ?: choreResponse.chores ?: emptyList()
-
-                    // Always replace chores for pagination (not append)
-                    chores.clear()
-                    chores.addAll(choreList)
-                    choreAdapter.updateChores(chores)
-
-                    // Update pagination UI
-                    updatePaginationUI()
-
-                    android.util.Log.d("ChoreListActivity", "Loaded ${choreList.size} chores (page $currentPage/$totalPages, total: $total)")
-
-                    if (chores.isEmpty()) {
-                        binding.tvEmptyState.visibility = View.VISIBLE
-                    }
+            lifecycleScope.launch {
+                if (isOnline) {
+                    fetchFromServer()
                 } else {
                     Toast.makeText(
                         this@ChoreListActivity,
-                        "Failed to load chores: ${response.code()}",
+                        "Cannot refresh while offline",
                         Toast.LENGTH_SHORT
                     ).show()
+                    binding.swipeRefreshLayout.isRefreshing = false
                 }
-            } catch (e: Exception) {
-                binding.progressBar.visibility = View.GONE
-                binding.swipeRefreshLayout.isRefreshing = false
-                isLoading = false
-
-                Toast.makeText(
-                    this@ChoreListActivity,
-                    "Network error: ${e.message}",
-                    Toast.LENGTH_SHORT
-                ).show()
-
-                e.printStackTrace()
             }
         }
     }
 
-    private fun updatePaginationUI() {
-        // Update page info text
-        binding.tvPageInfo.text = "Page $currentPage of $totalPages"
+    private fun loadChoresFromDatabase() {
+        lifecycleScope.launch {
+            repository.chores.collectLatest { choreList ->
+                chores.clear()
+                chores.addAll(choreList)
+                choreAdapter.updateChores(chores)
 
-        // Enable/disable previous button
-        binding.btnPrevious.isEnabled = currentPage > 1
+                binding.tvEmptyState.visibility = if (chores.isEmpty()) View.VISIBLE else View.GONE
+                binding.progressBar.visibility = View.GONE
+            }
+        }
+    }
 
-        // Enable/disable next button
-        binding.btnNext.isEnabled = currentPage < totalPages
+    private suspend fun fetchFromServer() {
+        binding.progressBar.visibility = View.VISIBLE
+        try {
+            repository.fetchChoresFromServer()
+            binding.swipeRefreshLayout.isRefreshing = false
+        } catch (e: Exception) {
+            binding.swipeRefreshLayout.isRefreshing = false
+            Toast.makeText(
+                this,
+                "Failed to fetch from server: ${e.message}",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+        binding.progressBar.visibility = View.GONE
+    }
 
-        // Hide pagination if only one page or no chores
-        binding.paginationLayout.visibility = if (totalPages > 1) View.VISIBLE else View.GONE
+    private suspend fun syncPendingOperations() {
+        if (!isOnline) return
+
+        try {
+            val syncedCount = repository.syncPendingOperations()
+            if (syncedCount > 0) {
+                Toast.makeText(
+                    this,
+                    "Synced $syncedCount operation(s)",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ChoreListActivity", "Sync error", e)
+        }
     }
 
     private fun openChoreDetail(chore: Chore?) {
@@ -190,9 +274,19 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
 
     override fun onResume() {
         super.onResume()
-        // Reload chores when returning from detail activity - reset to refresh
-        currentPage = 1
-        loadChores(reset = true)
+        // Only fetch from server, don't sync (sync is triggered by network status change)
+        lifecycleScope.launch {
+            if (isOnline) {
+                // Update pending count in case it changed
+                pendingOperationsCount = repository.getPendingOperationsCount()
+                updateNetworkStatus()
+
+                // Only fetch if there are no pending operations
+                if (pendingOperationsCount == 0) {
+                    fetchFromServer()
+                }
+            }
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -207,8 +301,23 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
                 true
             }
             R.id.action_refresh -> {
-                currentPage = 1
-                loadChores(reset = true)
+                lifecycleScope.launch {
+                    if (isOnline) {
+                        syncPendingOperations()
+                        // Update UI to reflect sync completion
+                        pendingOperationsCount = repository.getPendingOperationsCount()
+                        updateNetworkStatus()
+                        // Small delay before fetching
+                        kotlinx.coroutines.delay(500)
+                        fetchFromServer()
+                    } else {
+                        Toast.makeText(
+                            this@ChoreListActivity,
+                            "Cannot refresh while offline",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
                 true
             }
             else -> super.onOptionsItemSelected(item)
@@ -216,15 +325,12 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     }
 
     private fun logout() {
-        // Disconnect WebSocket
         webSocketManager.removeListener(this)
         webSocketManager.disconnect()
 
-        // Clear token from SharedPreferences
         val sharedPrefs = getSharedPreferences("ChoreAppPrefs", Context.MODE_PRIVATE)
         sharedPrefs.edit().clear().apply()
 
-        // Navigate back to login
         val intent = Intent(this, LoginActivity::class.java)
         intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         startActivity(intent)
@@ -236,26 +342,26 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
         webSocketManager.removeListener(this)
     }
 
-    // WebSocket listener methods
+    // WebSocket listener methods (with notifications - 2p requirement)
     override fun onChoreCreated(chore: Chore) {
         runOnUiThread {
             android.util.Log.d("ChoreListActivity", "WebSocket: Chore created - ${chore.title}")
-            // Reload to get fresh data and update pagination
-            loadChores(reset = true)
+            NotificationHelper.showChoreCreatedNotification(this, chore)
+
+            // Refresh from server to get the latest data
+            lifecycleScope.launch {
+                fetchFromServer()
+            }
         }
     }
 
     override fun onChoreUpdated(chore: Chore) {
         runOnUiThread {
             android.util.Log.d("ChoreListActivity", "WebSocket: Chore updated - ${chore.title}")
-            // Find and update the chore in the list
-            val index = chores.indexOfFirst { it.id == chore.id }
-            if (index != -1) {
-                chores[index] = chore
-                choreAdapter.updateChores(chores)
-            } else {
-                // Chore might be on a different page or filtered out, reload to be safe
-                loadChores(reset = true)
+            NotificationHelper.showChoreUpdatedNotification(this, chore)
+
+            lifecycleScope.launch {
+                fetchFromServer()
             }
         }
     }
@@ -263,8 +369,15 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     override fun onChoreDeleted(choreId: Int) {
         runOnUiThread {
             android.util.Log.d("ChoreListActivity", "WebSocket: Chore deleted - ID $choreId")
-            // Reload to get fresh data and update pagination
-            loadChores(reset = true)
+
+            val deletedChore = chores.find { it.id == choreId }
+            if (deletedChore != null) {
+                NotificationHelper.showChoreDeletedNotification(this, choreId, deletedChore.title)
+            }
+
+            lifecycleScope.launch {
+                fetchFromServer()
+            }
         }
     }
 
