@@ -91,11 +91,12 @@
 
             <Button
                 android:id="@+id/btnPrevious"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Previous"
+                android:text="◀"
+                android:textSize="18sp"
                 android:enabled="false"
+                android:minWidth="48dp"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
             <TextView
@@ -106,15 +107,17 @@
                 android:layout_marginEnd="16dp"
                 android:text="Page 1 of 1"
                 android:textSize="14sp"
-                android:textStyle="bold" />
+                android:textStyle="bold"
+                android:gravity="center" />
 
             <Button
                 android:id="@+id/btnNext"
-                android:layout_width="0dp"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="Next"
+                android:text="▶"
+                android:textSize="18sp"
                 android:enabled="false"
+                android:minWidth="48dp"
                 style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
 
         </LinearLayout>
@@ -126,7 +129,8 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
+        android:layout_marginEnd="16dp"
+        android:layout_marginBottom="88dp"
         android:contentDescription="@string/add_chore"
         app:srcCompat="@android:drawable/ic_input_add" />
 
