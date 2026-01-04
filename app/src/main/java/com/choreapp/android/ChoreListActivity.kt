@@ -22,6 +22,7 @@ import com.choreapp.android.models.Chore
 import com.choreapp.android.network.NetworkMonitor
 import com.choreapp.android.repository.ChoreRepository
 import com.choreapp.android.utils.NotificationHelper
+import com.choreapp.android.utils.ShakeDetector
 import com.choreapp.android.websocket.WebSocketManager
 import com.choreapp.android.workers.SyncWorker
 import kotlinx.coroutines.flow.collectLatest
@@ -38,6 +39,9 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     private lateinit var repository: ChoreRepository
     private lateinit var networkMonitor: NetworkMonitor
     private val webSocketManager = WebSocketManager.getInstance()
+
+    // Shake detector for refresh (3p requirement - sensors)
+    private lateinit var shakeDetector: ShakeDetector
 
     private var isOnline = true
     private var pendingOperationsCount = 0
@@ -56,6 +60,11 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
         // Initialize offline-first components
         repository = ChoreRepository(this)
         networkMonitor = NetworkMonitor(this)
+
+        // Initialize shake detector (3p requirement - sensors)
+        shakeDetector = ShakeDetector(this) {
+            onShakeDetected()
+        }
 
         // Request notification permission
         requestNotificationPermission()
@@ -268,12 +277,20 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
             intent.putExtra("chore_priority", it.priority)
             intent.putExtra("chore_due_date", it.due_date)
             intent.putExtra("chore_points", it.points)
+
+            // Pass location data (3p requirement - Location & Maps)
+            it.latitude?.let { lat -> intent.putExtra("chore_latitude", lat) }
+            it.longitude?.let { lon -> intent.putExtra("chore_longitude", lon) }
+            it.location_name?.let { name -> intent.putExtra("chore_location_name", name) }
         }
         startActivity(intent)
     }
 
     override fun onResume() {
         super.onResume()
+        // Start shake detector (3p requirement - sensors)
+        shakeDetector.start()
+
         // Only fetch from server, don't sync (sync is triggered by network status change)
         lifecycleScope.launch {
             if (isOnline) {
@@ -284,6 +301,34 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
                 // Only fetch if there are no pending operations
                 if (pendingOperationsCount == 0) {
                     fetchFromServer()
+                }
+            }
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // Stop shake detector to save battery
+        shakeDetector.stop()
+    }
+
+    private fun onShakeDetected() {
+        runOnUiThread {
+            Toast.makeText(this, "Shake detected - Refreshing...", Toast.LENGTH_SHORT).show()
+
+            lifecycleScope.launch {
+                if (isOnline) {
+                    syncPendingOperations()
+                    pendingOperationsCount = repository.getPendingOperationsCount()
+                    updateNetworkStatus()
+                    kotlinx.coroutines.delay(500)
+                    fetchFromServer()
+                } else {
+                    Toast.makeText(
+                        this@ChoreListActivity,
+                        "Cannot refresh while offline",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
             }
         }

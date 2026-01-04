@@ -126,6 +126,34 @@
                     android:inputType="number" />
             </com.google.android.material.textfield.TextInputLayout>
 
+            <!-- Location section (3p requirement - Location & Maps) -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Location"
+                android:textStyle="bold"
+                android:textSize="16sp"
+                android:layout_marginBottom="8dp" />
+
+            <Button
+                android:id="@+id/btnAddLocation"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Add Location"
+                android:layout_marginBottom="8dp"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
+
+            <TextView
+                android:id="@+id/tvLocationInfo"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="No location set"
+                android:textSize="14sp"
+                android:padding="8dp"
+                android:background="@android:color/darker_gray"
+                android:layout_marginBottom="16dp"
+                android:visibility="gone" />
+
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

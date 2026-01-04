@@ -60,6 +60,9 @@ captures/
 # Google Services (e.g. APIs or Firebase)
 # google-services.json
 
+# API Keys - keep these secure and local only
+app/src/main/res/values/api_keys.xml
+
 # Freeline
 freeline.py
 freeline/

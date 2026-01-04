@@ -10,5 +10,10 @@ data class Chore(
     val points: Int = 0,
     val created_at: String? = null,
     val updated_at: String? = null,
-    val user_id: Int? = null
+    val user_id: Int? = null,
+    val latitude: Double? = null,
+    val longitude: Double? = null,
+    val location_name: String? = null,
+    val photo_url: String? = null,
+    val photo_path: String? = null
 )

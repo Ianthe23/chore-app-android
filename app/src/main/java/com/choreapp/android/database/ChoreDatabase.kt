@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ChoreEntity::class, SyncQueueEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class ChoreDatabase : RoomDatabase() {

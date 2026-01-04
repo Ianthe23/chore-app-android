@@ -4,6 +4,7 @@ import android.graphics.Color
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AnimationUtils
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.choreapp.android.R
@@ -14,6 +15,8 @@ class ChoreAdapter(
     private val onChoreClick: (Chore) -> Unit
 ) : RecyclerView.Adapter<ChoreAdapter.ChoreViewHolder>() {
 
+    private var lastPosition = -1
+
     class ChoreViewHolder(view: View) : RecyclerView.ViewHolder(view) {
         val tvChoreTitle: TextView = view.findViewById(R.id.tvChoreTitle)
         val tvChoreDescription: TextView = view.findViewById(R.id.tvChoreDescription)
@@ -21,6 +24,7 @@ class ChoreAdapter(
         val tvPriorityBadge: TextView = view.findViewById(R.id.tvPriorityBadge)
         val tvDueDate: TextView = view.findViewById(R.id.tvDueDate)
         val tvPoints: TextView = view.findViewById(R.id.tvPoints)
+        val tvLocation: TextView = view.findViewById(R.id.tvLocation)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChoreViewHolder {
@@ -52,10 +56,35 @@ class ChoreAdapter(
             holder.tvDueDate.visibility = View.GONE
         }
 
+        // Location (3p requirement - Location & Maps)
+        if (chore.latitude != null && chore.longitude != null) {
+            val locationText = chore.location_name ?: "Lat: ${chore.latitude}, Lon: ${chore.longitude}"
+            holder.tvLocation.text = "📍 $locationText"
+            holder.tvLocation.visibility = View.VISIBLE
+        } else {
+            holder.tvLocation.visibility = View.GONE
+        }
+
         // Click listener
         holder.itemView.setOnClickListener {
             onChoreClick(chore)
         }
+
+        // Animate item (3p requirement - animations)
+        setAnimation(holder.itemView, position)
+    }
+
+    private fun setAnimation(viewToAnimate: View, position: Int) {
+        if (position > lastPosition) {
+            val animation = AnimationUtils.loadAnimation(viewToAnimate.context, R.anim.item_fade_in)
+            viewToAnimate.startAnimation(animation)
+            lastPosition = position
+        }
+    }
+
+    override fun onViewDetachedFromWindow(holder: ChoreViewHolder) {
+        super.onViewDetachedFromWindow(holder)
+        holder.itemView.clearAnimation()
     }
 
     override fun getItemCount(): Int = chores.size

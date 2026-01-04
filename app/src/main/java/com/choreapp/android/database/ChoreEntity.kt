@@ -17,6 +17,11 @@ data class ChoreEntity(
     val created_at: String?,
     val updated_at: String?,
     val user_id: Int?,
+    val latitude: Double?,
+    val longitude: Double?,
+    val location_name: String?,
+    val photo_url: String?,
+    val photo_path: String?,
     val isSynced: Boolean = true // Track if synced with server
 ) {
     fun toChore(): Chore {
@@ -30,7 +35,12 @@ data class ChoreEntity(
             points = points,
             created_at = created_at,
             updated_at = updated_at,
-            user_id = user_id
+            user_id = user_id,
+            latitude = latitude,
+            longitude = longitude,
+            location_name = location_name,
+            photo_url = photo_url,
+            photo_path = photo_path
         )
     }
 
@@ -47,6 +57,11 @@ data class ChoreEntity(
                 created_at = chore.created_at,
                 updated_at = chore.updated_at,
                 user_id = chore.user_id,
+                latitude = chore.latitude,
+                longitude = chore.longitude,
+                location_name = chore.location_name,
+                photo_url = chore.photo_url,
+                photo_path = chore.photo_path,
                 isSynced = isSynced
             )
         }

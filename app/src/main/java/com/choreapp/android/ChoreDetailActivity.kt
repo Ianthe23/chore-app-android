@@ -1,16 +1,25 @@
 package com.choreapp.android
 
+import android.Manifest
+import android.app.Activity
 import android.app.DatePickerDialog
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.View
 import android.widget.ArrayAdapter
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.choreapp.android.databinding.ActivityChoreDetailBinding
 import com.choreapp.android.models.Chore
 import com.choreapp.android.repository.ChoreRepository
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -22,6 +31,28 @@ class ChoreDetailActivity : AppCompatActivity() {
     private var choreId: Int? = null
     private var isEditMode = false
 
+    // Location functionality (3p requirement - Location & Maps)
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var currentLatitude: Double? = null
+    private var currentLongitude: Double? = null
+    private var currentLocationName: String? = null
+
+    private val locationPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.let { data ->
+                currentLatitude = data.getDoubleExtra("latitude", 0.0)
+                currentLongitude = data.getDoubleExtra("longitude", 0.0)
+                currentLocationName = data.getStringExtra("location_name")
+                updateLocationUI()
+                Toast.makeText(this, "Location selected", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    companion object {
+        private const val LOCATION_PERMISSION_CODE = 200
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityChoreDetailBinding.inflate(layoutInflater)
@@ -31,6 +62,7 @@ class ChoreDetailActivity : AppCompatActivity() {
         supportActionBar?.setDisplayHomeAsUpEnabled(true)
 
         repository = ChoreRepository(this)
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
         setupDropdowns()
         loadChoreData()
@@ -74,6 +106,17 @@ class ChoreDetailActivity : AppCompatActivity() {
         binding.etDueDate.setText(intent.getStringExtra("chore_due_date") ?: "")
         binding.etPoints.setText(intent.getIntExtra("chore_points", 0).toString())
 
+        // Load location data if exists
+        if (intent.hasExtra("chore_latitude") && intent.hasExtra("chore_longitude")) {
+            currentLatitude = intent.getDoubleExtra("chore_latitude", 0.0).takeIf { it != 0.0 }
+            currentLongitude = intent.getDoubleExtra("chore_longitude", 0.0).takeIf { it != 0.0 }
+            currentLocationName = intent.getStringExtra("chore_location_name")
+
+            if (currentLatitude != null && currentLongitude != null) {
+                updateLocationUI()
+            }
+        }
+
         enableEditMode()
     }
 
@@ -90,6 +133,10 @@ class ChoreDetailActivity : AppCompatActivity() {
 
         binding.btnDelete.setOnClickListener {
             showDeleteConfirmation()
+        }
+
+        binding.btnAddLocation.setOnClickListener {
+            requestLocationPermission()
         }
     }
 
@@ -136,7 +183,10 @@ class ChoreDetailActivity : AppCompatActivity() {
             status = status,
             priority = priority,
             due_date = dueDate,
-            points = points
+            points = points,
+            latitude = currentLatitude,
+            longitude = currentLongitude,
+            location_name = currentLocationName
         )
 
         binding.btnSave.isEnabled = false
@@ -224,6 +274,63 @@ class ChoreDetailActivity : AppCompatActivity() {
         binding.etDueDate.isEnabled = true
         binding.etPoints.isEnabled = true
         binding.btnSave.visibility = View.VISIBLE
+    }
+
+    // Location methods (3p requirement - Location & Maps)
+    private fun requestLocationPermission() {
+        when {
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) == PackageManager.PERMISSION_GRANTED -> {
+                getCurrentLocation()
+            }
+            else -> {
+                ActivityCompat.requestPermissions(
+                    this,
+                    arrayOf(
+                        Manifest.permission.ACCESS_FINE_LOCATION,
+                        Manifest.permission.ACCESS_COARSE_LOCATION
+                    ),
+                    LOCATION_PERMISSION_CODE
+                )
+            }
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        when (requestCode) {
+            LOCATION_PERMISSION_CODE -> {
+                if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    getCurrentLocation()
+                } else {
+                    Toast.makeText(this, "Location permission denied", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun getCurrentLocation() {
+        // Launch location picker activity (permission already checked)
+        val intent = Intent(this, LocationPickerActivity::class.java)
+        if (currentLatitude != null && currentLongitude != null) {
+            intent.putExtra("latitude", currentLatitude!!)
+            intent.putExtra("longitude", currentLongitude!!)
+        }
+        locationPickerLauncher.launch(intent)
+    }
+
+    private fun updateLocationUI() {
+        if (currentLatitude != null && currentLongitude != null) {
+            binding.tvLocationInfo.text = currentLocationName ?: "Lat: $currentLatitude, Lon: $currentLongitude"
+            binding.tvLocationInfo.visibility = View.VISIBLE
+            binding.btnAddLocation.text = "Update Location"
+        }
     }
 
     override fun onSupportNavigateUp(): Boolean {

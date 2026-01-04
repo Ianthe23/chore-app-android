@@ -87,6 +87,10 @@ dependencies {
     // WorkManager for background tasks (3p requirement)
     implementation 'androidx.work:work-runtime-ktx:2.9.0'
 
+    // Google Maps for location (3p requirement - location & maps)
+    implementation 'com.google.android.gms:play-services-maps:18.2.0'
+    implementation 'com.google.android.gms:play-services-location:21.1.0'
+
     // Testing
     testImplementation 'junit:junit:4.13.2'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'

@@ -9,6 +9,10 @@
     <!-- Notification permission for Android 13+ (2p requirement - system services) -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Location permissions (3p requirement - sensors/location) -->
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -50,6 +54,17 @@
             android:exported="false"
             android:theme="@style/Theme.ChoreApp.NoActionBar"
             android:parentActivityName=".ChoreListActivity" />
+
+        <!-- Location Picker Activity (3p requirement - Location & Maps) -->
+        <activity
+            android:name=".LocationPickerActivity"
+            android:exported="false"
+            android:theme="@style/Theme.ChoreApp.NoActionBar" />
+
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="@string/google_maps_key" />
 
     </application>
 

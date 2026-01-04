@@ -52,4 +52,9 @@
     <string name="priority_low">Low</string>
     <string name="priority_medium">Medium</string>
     <string name="priority_high">High</string>
+
+    <!-- Google Maps API Key -->
+    <!-- IMPORTANT: Add your actual API key in api_keys.xml (this file is gitignored) -->
+    <!-- This is just a placeholder for developers who haven't set up their key yet -->
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">YOUR_API_KEY_HERE</string>
 </resources>
