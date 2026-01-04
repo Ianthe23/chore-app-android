@@ -34,6 +34,7 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
     private lateinit var binding: ActivityChoreListBinding
     private lateinit var choreAdapter: ChoreAdapter
     private var chores: MutableList<Chore> = mutableListOf()
+    private var allChores: MutableList<Chore> = mutableListOf()
 
     // Offline-first architecture
     private lateinit var repository: ChoreRepository
@@ -42,6 +43,11 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
 
     // Shake detector for refresh (3p requirement - sensors)
     private lateinit var shakeDetector: ShakeDetector
+
+    // Pagination
+    private var currentPage = 1
+    private var pageSize = 10
+    private var totalPages = 1
 
     private var isOnline = true
     private var pendingOperationsCount = 0
@@ -219,19 +225,66 @@ class ChoreListActivity : AppCompatActivity(), WebSocketManager.WebSocketListene
                 }
             }
         }
+
+        // Pagination buttons
+        binding.btnPrevious.setOnClickListener {
+            if (currentPage > 1) {
+                currentPage--
+                updatePagedChores()
+            }
+        }
+
+        binding.btnNext.setOnClickListener {
+            if (currentPage < totalPages) {
+                currentPage++
+                updatePagedChores()
+            }
+        }
     }
 
     private fun loadChoresFromDatabase() {
         lifecycleScope.launch {
             repository.chores.collectLatest { choreList ->
-                chores.clear()
-                chores.addAll(choreList)
-                choreAdapter.updateChores(chores)
+                allChores.clear()
+                allChores.addAll(choreList)
 
-                binding.tvEmptyState.visibility = if (chores.isEmpty()) View.VISIBLE else View.GONE
+                // Reset to first page when data changes
+                currentPage = 1
+                updatePagedChores()
+
+                binding.tvEmptyState.visibility = if (allChores.isEmpty()) View.VISIBLE else View.GONE
                 binding.progressBar.visibility = View.GONE
             }
         }
+    }
+
+    private fun updatePagedChores() {
+        // Calculate total pages
+        totalPages = if (allChores.isEmpty()) 1 else ((allChores.size - 1) / pageSize) + 1
+
+        // Get chores for current page
+        val startIndex = (currentPage - 1) * pageSize
+        val endIndex = minOf(startIndex + pageSize, allChores.size)
+
+        chores.clear()
+        if (startIndex < allChores.size) {
+            chores.addAll(allChores.subList(startIndex, endIndex))
+        }
+
+        choreAdapter.updateChores(chores)
+        updatePaginationUI()
+
+        // Scroll to top of list when changing pages
+        binding.rvChores.scrollToPosition(0)
+    }
+
+    private fun updatePaginationUI() {
+        binding.tvPageInfo.text = "Page $currentPage of $totalPages"
+        binding.btnPrevious.isEnabled = currentPage > 1
+        binding.btnNext.isEnabled = currentPage < totalPages
+
+        // Show/hide pagination layout based on whether we have multiple pages
+        binding.paginationLayout.visibility = if (totalPages > 1) View.VISIBLE else View.GONE
     }
 
     private suspend fun fetchFromServer() {
