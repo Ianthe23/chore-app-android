@@ -40,7 +40,7 @@ Add your API key to the file:
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Google Maps API Key - DO NOT COMMIT THIS FILE -->
-    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">AIzaSyA1B2C3D4E5F6G7H8I9J0K1L2M3N4O5P6Q</string>
+    <string name="google_maps_key" templateMergeStrategy="preserve" translatable="false">YOUR_API_KEY</string>
 </resources>
 ```
 
